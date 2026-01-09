@@ -2323,10 +2323,12 @@ Guiding principles for note generation
            (setq note-body (if (and selected-text-p
                                     (not (equal title short-selected-text))
                                     (if short-selected-text
-                                        ;; what text is short: Only insert if token wasn't used, OR user explicitly allows it
+                                        ;; if a replacement token is used and `org-noter-insert-short-text-inside-note' is non-nil
+                                        ;; the selected text is inserted in the note body.
                                         (or (not token-used) org-noter-insert-short-text-inside-note)
-                                      ;; If text is longer than the value of `org-noter-max-short-selected-text-length', then
-                                      ;; ignore token logic, use specific long-text variable
+                                      ;; if a replacement token is used and the
+                                      ;; text is longer than the value of `org-noter-max-short-selected-text-length', then
+                                      ;; use specific long-text variable to decide whether the highlighted text should be inserted
                                       org-noter-insert-long-text-inside-note))
                                selected-text)
                  ;; is this an existing note? skip for precise notes
