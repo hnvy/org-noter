@@ -2277,8 +2277,13 @@ Guiding principles for note generation
            (setq collection (nreverse collection)
                  ;; prompt for title (unless no-Q's)
                  title (if org-noter-insert-note-no-questions default-title
-                         (completing-read "Note: " collection nil nil nil nil default-title))
-                 note-body (if (and selected-text-p
+                         (completing-read "Note: " collection nil nil nil nil default-title)))
+           ;; "###" is a token to represent the selected text
+           (let ((token "###"))
+             (when (string-match-p (regexp-quote token) title)
+               (setq title (replace-regexp-in-string (regexp-quote token) default-title title t t))))
+
+           (setq note-body (if (and selected-text-p
                                     (not (equal title short-selected-text)))
                                selected-text)
                  ;; is this an existing note? skip for precise notes
