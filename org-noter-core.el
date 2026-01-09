@@ -84,6 +84,24 @@ at the moment."
   :group 'org-noter-insertion
   :type 'string)
 
+(defcustom org-noter-insert-note-replacement-token "##"
+  "The token used in `org-noter-insert-note' to represent the default title.
+When entering a note title, occurrences of this token will be replaced by
+the default title (i.e., either the selected text or `org-noter-default-heading-title')."
+  :group 'org-noter-insertion
+  :type 'string)
+
+(defcustom org-noter-insert-body-when-token-used t
+  "Control whether selected text is inserted in the body when used in the title.
+When the replacement token (see `org-noter-insert-note-replacement-token') is used in
+the note title, the selected text is substituted into the title.
+
+If non-nil (default), the selected text is inserted in the body even
+if the token was used.  If set to nil, the selected text is NOT
+repeated in the note body (preventing the text insertion)."
+  :group 'org-noter-insertion
+  :type 'boolean)
+
 (defcustom org-noter-notes-window-behavior '(start scroll)
   "Specifies situations for which the notes window is created.
 
@@ -2260,7 +2278,7 @@ Guiding principles for note generation
 
          (let ((view-info (org-noter--get-view-info current-view location))
                (minibuffer-local-completion-map org-noter--completing-read-keymap)
-               collection title note-body existing-note
+               collection title note-body existing-note token-used
                (default-title (or short-selected-text
                                   (replace-regexp-in-string (regexp-quote "$p$")
                                                             (org-noter--pretty-print-location-for-title location)
@@ -2278,13 +2296,18 @@ Guiding principles for note generation
                  ;; prompt for title (unless no-Q's)
                  title (if org-noter-insert-note-no-questions default-title
                          (completing-read "Note: " collection nil nil nil nil default-title)))
-           ;; "###" is a token to represent the selected text
-           (let ((token "###"))
+
+           ;; Check if the user used a token to request the default title
+           ;; to be inserted into their custom string.
+           (let ((token org-noter-insert-note-replacement-token))
              (when (string-match-p (regexp-quote token) title)
-               (setq title (replace-regexp-in-string (regexp-quote token) default-title title t t))))
+               (setq title (replace-regexp-in-string (regexp-quote token) default-title title t t)
+                     token-used t)))
 
            (setq note-body (if (and selected-text-p
-                                    (not (equal title short-selected-text)))
+                                    (not (equal title short-selected-text))
+                                    ;; only set note-body if token wasn't used... OR if user explicitly wants it
+                                    (or (not token-used) org-noter-insert-body-when-token-used))
                                selected-text)
                  ;; is this an existing note? skip for precise notes
                  existing-note (unless precise-info (cdr (assoc title collection))))
