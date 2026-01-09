@@ -92,31 +92,29 @@ the default title (i.e., either the selected text or `org-noter-default-heading-
 
 Certain default behaviours should be noted:
 - If the text is short (as determined by `org-noter-max-short-selected-text-length') and a
-  replacement token is used, then the short text will NOT be added to note body. This can be
-  modified by setting `org-noter-insert-body-when-token-used' to non-nil.
+  replacement token is used, then the short text will be repeated in the note body. This can be
+  modified by setting `org-noter-insert-short-text-inside-note'.
 - Long text is added to note body regardless of whether a replacement token is used. This can be
   modified by setting `org-noter-insert-long-text-inside-note' to nil."
   :group 'org-noter-insertion
   :type 'string)
 
-(defcustom org-noter-insert-body-when-token-used nil
-  "Control whether selected text is inserted in the body when used in the title.
-When the replacement token (see `org-noter-insert-note-replacement-token') is used in
-the note title, the selected text is substituted into the title.
+(defcustom org-noter-insert-short-text-inside-note t
+  "Control whether short text is inserted in the body when using `org-noter-insert-note-replacement-token'.
 
-If nil (default), the selected text is NOT repeated in the note body (preventing the
-text insertion).  If non-nil, the selected text is inserted in the body even
-if the token was used."
+If non-nil (default), the selected text is inserted in the body even
+if the token was used. If nil, the selected text is NOT repeated in the
+note body."
   :group 'org-noter-insertion
   :type 'boolean)
 
 (defcustom org-noter-insert-long-text-inside-note t
-  "Whether to insert selected text into the note body when it is considered 'long'.
+  "Control whether to insert 'long' selected text into the note body.
 
 Text is considered 'long' if it exceeds `org-noter-max-short-selected-text-length'. 
 If non-nil (default), long text is inserted regardless of whether a
 `org-noter-insert-note-replacement-token' was used in the title (see
-`org-noter-insert-body-when-token-used')."
+`org-noter-insert-short-text-inside-note')."
   :group 'org-noter-insertion
   :type 'boolean)
 
@@ -2326,7 +2324,7 @@ Guiding principles for note generation
                                     (not (equal title short-selected-text))
                                     (if short-selected-text
                                         ;; what text is short: Only insert if token wasn't used, OR user explicitly allows it
-                                        (or (not token-used) org-noter-insert-body-when-token-used)
+                                        (or (not token-used) org-noter-insert-short-text-inside-note)
                                       ;; If text is longer than the value of `org-noter-max-short-selected-text-length', then
                                       ;; ignore token logic, use specific long-text variable
                                       org-noter-insert-long-text-inside-note))
