@@ -86,8 +86,16 @@ at the moment."
 
 (defcustom org-noter-insert-note-replacement-token "##"
   "The token used in `org-noter-insert-note' to represent the default title.
+
 When entering a note title, occurrences of this token will be replaced by
-the default title (i.e., either the selected text or `org-noter-default-heading-title')."
+the default title (i.e., either the selected text or `org-noter-default-heading-title').
+
+Certain default behaviours should be noted:
+- If the text is short (as determined by `org-noter-max-short-selected-text-length') and a
+  replacement token is used, then the short text will NOT be added to note body. This can be
+  modified by setting `org-noter-insert-body-when-token-used' to non-nil.
+- Long text is added to note body regardless of whether a replacement token is used. This can be
+  modified by setting `org-noter-insert-long-text-inside-note' to nil."
   :group 'org-noter-insertion
   :type 'string)
 
