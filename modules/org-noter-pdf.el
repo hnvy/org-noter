@@ -492,6 +492,7 @@ v') for precise notes."
      dx dy)))
 
 (add-to-list 'org-noter--show-arrow-hook #'org-noter-pdf--show-arrow)
+
 (defun org-noter-store-highlight-link ()
   "Store a link to the current location in the PDF.
 Behaviour depends on `org-noter-store-link-markup-annotation':
