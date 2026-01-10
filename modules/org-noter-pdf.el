@@ -568,10 +568,9 @@ Prefix arg (C-u) toggles the behaviour (Non-nil -> Nil; Nil -> T)."
     (image-set-window-vscroll
      (round (/ (* v (cdr size)) (frame-char-height)))))
 
-  ;; Show the arrow
-  (when (fboundp 'org-noter--show-arrow)
-    (setq org-noter--arrow-location (vector (cons page v) (selected-window) v h))
-    (org-noter--show-arrow))
+  ;; Show the arrpw
+  (setq org-noter--arrow-location (vector (cons page v) (selected-window) v h))
+  (org-noter-pdf--show-arrow)
 
   (if edges
       ;; If our link contains explicit edges (i.e., if we had set `org-noter-store-link-markup-annotation' to 'flash OR t)
