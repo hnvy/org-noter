@@ -475,6 +475,104 @@ v') for precise notes."
 
 (add-to-list 'org-noter--show-arrow-hook #'org-noter-pdf--show-arrow)
 
+(defun org-noter-store-highlight-link ()
+  "Store a link to the current location in the PDF in the
+format: pdf:path::(page v . h).
+
+The description of the link is determined as follows:
+1. If text is selected and shorter than `org-noter-max-short-selected-text-length',
+   use the selected text.
+2. Otherwise, use the value of `org-noter-default-heading-title'."
+  (when (eq major-mode 'pdf-view-mode)
+    (let* ((file-path (buffer-file-name))
+           (page (if (and pdf-view-active-region (consp pdf-view-active-region))
+                     (car pdf-view-active-region)
+                   (pdf-view-current-page)))
+           (link (if (and pdf-view-active-region (consp pdf-view-active-region))
+                     (let* ((region (car (cdr pdf-view-active-region)))
+                            (h (nth 0 region)) ; x1 (horizontal)
+                            (v (nth 1 region))) ; y1 (vertical)
+                       (format "pdf:%s::(%d %.3f . %.3f)" file-path page v h))
+                   (format "pdf:%s::%d" file-path page)))
+
+           ;; get selected text if available
+           (raw-text (when (and pdf-view-active-region (consp pdf-view-active-region))
+                       (mapconcat #'identity (pdf-view-active-region-text) " ")))
+           ;; Remove the nasty spaces
+           (clean-text (when raw-text
+                         (string-trim (replace-regexp-in-string "[[:space:]\n\r]+" " " raw-text))))
+           ;; Get the max length threshold
+           (max-len (if (boundp 'org-noter-max-short-selected-text-length)
+                        org-noter-max-short-selected-text-length
+                      80))
+           ;; fallback title (e.g., "Notes for page 10")
+           (default-title (let ((template (if (boundp 'org-noter-default-heading-title)
+                                              org-noter-default-heading-title
+                                            "Notes for page $p$")))
+                            (replace-regexp-in-string (regexp-quote "$p$")
+                                                      (number-to-string page)
+                                                      template t t)))
+           ;; Let's us choose a description: Short Text... OR Default Title
+           (description (if (and clean-text (<= (length clean-text) max-len))
+                            clean-text
+                          default-title)))
+
+      (org-link-store-props
+       :type "pdf"
+       :link link
+       :description description)
+
+      link)))
+
+(defun org-noter-goto-precise-link-location (page v h)
+  "Go to PAGE, scroll to relative coordinate V (vertically), and show arrow."
+  (pdf-view-goto-page page)
+  (let ((size (pdf-view-image-size)))
+    ;; Scroll vertically only
+    (image-set-window-vscroll
+     ;; NOTE(hnvy): Unsure if a horizontal scroll would also be useful? Doesn't seem
+     ;; to be present in the default behaviour.
+     (round (/ (* v (cdr size)) (frame-char-height))))
+    )
+
+  ;; Show the arrow
+  (when (fboundp 'org-noter--show-arrow)
+    (setq org-noter--arrow-location (vector (cons page v) (selected-window) v h))
+    (org-noter--show-arrow)))
+
+(defun org-noter-pdf-link-open (link)
+  "Open a PDF link, handling the custom (page v . h) format."
+  (let* ((parts (split-string link "::"))
+         (path (car parts))
+         (option (cadr parts)))
+    (if (and option
+             (string-match "^(\\([0-9]+\\)[[:space:]]+\\([0-9.]+\\)[[:space:]]*\\.[[:space:]]*\\([0-9.]+\\))$" option))
+        (progn
+          (let* ((clean-path (expand-file-name path))
+                 (buf (find-file-noselect clean-path))
+                 (win (get-buffer-window buf)))
+            (if win
+                (select-window win)
+              (switch-to-buffer-other-window buf)))
+
+          (let ((page (string-to-number (match-string 1 option)))
+                (v (string-to-number (match-string 2 option)))
+                (h (string-to-number (match-string 3 option))))
+            (org-noter-goto-precise-link-location page v h)))
+
+      ;; fallback
+      (if (fboundp 'org-pdftools-open)
+          (org-pdftools-open link)
+        (find-file path)
+        (when (and option (string-match-p "^[0-9]+$" option))
+          (pdf-view-goto-page (string-to-number option)))))))
+
+(org-link-set-parameters "pdf"
+                         :follow 'org-noter-pdf-link-open
+                         :store 'org-noter-store-highlight-link)
+
+
+
 (defun org-noter-pdf-set-columns (num-columns)
   "Interactively set the COLUMN_EDGES property for the current heading.
 NUM-COLUMNS can be given as an integer prefix or in the
@@ -516,6 +614,8 @@ current heading inherit the COLUMN_EDGES property."
       (select-window (org-noter--get-notes-window))
       (execute-kbd-macro
        (vconcat (kbd "C-c C-x") this-CxCc-cmd)))))
+
+(define-key pdf-view-mode-map (kbd "C-c l") 'org-store-link)
 
 (provide 'org-noter-pdf)
 ;;; org-noter-pdf.el ends here
