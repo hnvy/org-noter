@@ -466,6 +466,7 @@ v') for precise notes."
             (internal-border-width . 0)
             ,@tooltip-frame-parameters))
          (tooltip-hide-delay 3))
+
     (when vscroll
       (image-set-window-vscroll vscroll))
     (setq dy (max 0 (- dy
