@@ -90,33 +90,38 @@ at the moment."
 When entering a note title, occurrences of this token will be replaced by
 the default title (i.e., either the selected text or `org-noter-default-heading-title').
 
-Certain default behaviours should be noted:
+Certain default behaviors should be noted (see `org-noter-insert-note-body-behavior'):
 - If the text is short (as determined by `org-noter-max-short-selected-text-length') and a
-  replacement token is used, then the short text will be repeated in the note body. This can be
-  modified by setting `org-noter-insert-short-text-inside-note'.
-- Long text is added to note body regardless of whether a replacement token is used. This can be
-  modified by setting `org-noter-insert-long-text-inside-note' to nil."
+  replacement token is used, then the short text will be repeated in the note body.
+- Long text is added to note body regardless of whether a replacement token is used."
   :group 'org-noter-insertion
   :type 'string)
 
-(defcustom org-noter-insert-short-text-inside-note t
-  "Control whether short text is inserted in the body when using `org-noter-insert-note-replacement-token'.
+(defcustom org-noter-insert-note-body-behavior 'both
+  "Control whether selected text is inserted into the note body when using a `org-noter-insert-note-replacement-token'.
 
-If non-nil (default), the selected text is inserted in the body even
-if the token was used. If nil, the selected text is NOT repeated in the
-note body."
+This variable determines if the selected text from the document should be
+inserted into the note body when using a `org-noter-insert-note-replacement-token'.
+
+It specifically controls behavior the text is short/long AND a `org-noter-insert-note-replacement-token'
+was used in the title.
+
+Length of the text is determined by `org-noter-max-short-selected-text-length'.
+
+Values:
+- `short-text-only': Insert short text (even if token used), but do NOT insert long text.
+- `long-text-only': Do NOT insert short text (if token used), but DO insert long text.
+- `both' (default): Insert both short (even if token used) and long text.
+- `nil': Do NOT insert short text (if token used) and do NOT insert long text.
+
+Note: If the text is short and the replacement token was NOT used, the text
+is always inserted (unless the title is identical to the text). See
+`org-noter-insert-selected-text-inside-note' for more."
   :group 'org-noter-insertion
-  :type 'boolean)
-
-(defcustom org-noter-insert-long-text-inside-note t
-  "Control whether to insert 'long' selected text into the note body.
-
-Text is considered 'long' if it exceeds `org-noter-max-short-selected-text-length'. 
-If non-nil (default), long text is inserted regardless of whether a
-`org-noter-insert-note-replacement-token' was used in the title (see
-`org-noter-insert-short-text-inside-note')."
-  :group 'org-noter-insertion
-  :type 'boolean)
+  :type '(choice (const :tag "Short text only" short-text-only)
+                 (const :tag "Long text only" long-text-only)
+                 (const :tag "Both" both)
+                 (const :tag "None" nil)))
 
 (defcustom org-noter-notes-window-behavior '(start scroll)
   "Specifies situations for which the notes window is created.
@@ -2323,13 +2328,11 @@ Guiding principles for note generation
            (setq note-body (if (and selected-text-p
                                     (not (equal title short-selected-text))
                                     (if short-selected-text
-                                        ;; if a replacement token is used and `org-noter-insert-short-text-inside-note' is non-nil
-                                        ;; the selected text is inserted in the note body.
-                                        (or (not token-used) org-noter-insert-short-text-inside-note)
-                                      ;; if a replacement token is used and the
-                                      ;; text is longer than the value of `org-noter-max-short-selected-text-length', then
-                                      ;; use specific long-text variable to decide whether the highlighted text should be inserted
-                                      org-noter-insert-long-text-inside-note))
+                                        ;; if a replacement token is used, check if behavior allows short text insertion
+                                        (or (not token-used)
+                                            (memq org-noter-insert-note-body-behavior '(short-text-only both)))
+                                      ;; if text is long, check if behavior allows long text insertion
+                                      (memq org-noter-insert-note-body-behavior '(long-text-only both))))
                                selected-text)
                  ;; is this an existing note? skip for precise notes
                  existing-note (unless precise-info (cdr (assoc title collection))))
