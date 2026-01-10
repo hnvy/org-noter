@@ -485,10 +485,14 @@ The description of the link is determined as follows:
 2. Otherwise, use the value of `org-noter-default-heading-title'."
   (when (eq major-mode 'pdf-view-mode)
     (let* ((file-path (buffer-file-name))
-           (page (if (and pdf-view-active-region (consp pdf-view-active-region))
+           ;; Check if region is active AND has content (not just page number)
+           (has-region (and pdf-view-active-region 
+                            (consp pdf-view-active-region) 
+                            (cdr pdf-view-active-region)))
+           (page (if has-region
                      (car pdf-view-active-region)
                    (pdf-view-current-page)))
-           (link (if (and pdf-view-active-region (consp pdf-view-active-region))
+           (link (if has-region
                      (let* ((region (car (cdr pdf-view-active-region)))
                             (h (nth 0 region)) ; x1 (horizontal)
                             (v (nth 1 region))) ; y1 (vertical)
@@ -496,7 +500,7 @@ The description of the link is determined as follows:
                    (format "pdf:%s::%d" file-path page)))
 
            ;; get selected text if available
-           (raw-text (when (and pdf-view-active-region (consp pdf-view-active-region))
+           (raw-text (when has-region
                        (mapconcat #'identity (pdf-view-active-region-text) " ")))
            ;; Remove the nasty spaces
            (clean-text (when raw-text
