@@ -50,6 +50,25 @@ Otherwise returns nil"
 
 (add-to-list 'org-noter--get-highlight-location-hook 'org-noter-pdf--get-highlight)
 
+(defcustom org-noter-store-link-markup-annotation nil
+  "Control the highlighting behaviour when storing a link to a PDF region.
+
+This variable accepts three values:
+- t       : Add a permanent highlight annotation to the PDF file.
+            The link will also contain the region coordinates for robustness.
+- 'flash  : Do NOT modify the PDF file. Instead, store the region coordinates
+            inside the link itself. The region will flash when the link is opened.
+- nil     : Do not annotate the PDF and do not store region coordinates.
+            The link points to the location, but no flashing occurs.
+
+Interactively, using a prefix argument (C-u) toggles this behaviour:
+- If currently non-nil (t or 'flash), it forces behaviour to nil (off).
+- If currently nil, it forces behaviour to t (annotate)."
+  :group 'org-noter-insertion
+  :type '(choice (const :tag "Annotate PDF (Permanent)" t)
+                 (const :tag "Flash Region Only (No PDF mod)" flash)
+                 (const :tag "No Highlight/Flash" nil)))
+
 (defun org-noter-pdf--pretty-print-highlight (highlight-info)
   (format "%s" highlight-info))
 
@@ -447,7 +466,6 @@ v') for precise notes."
             (internal-border-width . 0)
             ,@tooltip-frame-parameters))
          (tooltip-hide-delay 3))
-
     (when vscroll
       (image-set-window-vscroll vscroll))
     (setq dy (max 0 (- dy
@@ -474,83 +492,117 @@ v') for precise notes."
      dx dy)))
 
 (add-to-list 'org-noter--show-arrow-hook #'org-noter-pdf--show-arrow)
-
 (defun org-noter-store-highlight-link ()
-  "Store a link to the current location in the PDF in the
-format: pdf:path::(page v . h).
+  "Store a link to the current location in the PDF.
+Behaviour depends on `org-noter-store-link-markup-annotation':
+- t:      Annotates PDF AND stores coordinates in link.
+- 'flash: Stores coordinates in link for transient flashing (no PDF mod).
+- nil:    No annotation or flashing.
 
-The description of the link is determined as follows:
-1. If text is selected and shorter than `org-noter-max-short-selected-text-length',
-   use the selected text.
-2. Otherwise, use the value of `org-noter-default-heading-title'."
+Prefix arg (C-u) toggles the behaviour (Non-nil -> Nil; Nil -> T)."
   (when (eq major-mode 'pdf-view-mode)
     (let* ((file-path (buffer-file-name))
-           ;; Check if region is active AND has content (not just page number)
-           (has-region (and pdf-view-active-region 
-                            (consp pdf-view-active-region) 
+           (has-region (and pdf-view-active-region
+                            (consp pdf-view-active-region)
                             (cdr pdf-view-active-region)))
            (page (if has-region
                      (car pdf-view-active-region)
                    (pdf-view-current-page)))
-           (link (if has-region
-                     (let* ((region (car (cdr pdf-view-active-region)))
-                            (h (nth 0 region)) ; x1 (horizontal)
-                            (v (nth 1 region))) ; y1 (vertical)
-                       (format "pdf:%s::(%d %.3f . %.3f)" file-path page v h))
-                   (format "pdf:%s::%d" file-path page)))
+           ;; Determine effective mode based on config and prefix arg
+           (mode (if current-prefix-arg
+                     (if org-noter-store-link-markup-annotation nil t)
+                   org-noter-store-link-markup-annotation)))
 
-           ;; get selected text if available
-           (raw-text (when has-region
-                       (mapconcat #'identity (pdf-view-active-region-text) " ")))
-           ;; Remove the nasty spaces
-           (clean-text (when raw-text
-                         (string-trim (replace-regexp-in-string "[[:space:]\n\r]+" " " raw-text))))
-           ;; Get the max length threshold
-           (max-len (if (boundp 'org-noter-max-short-selected-text-length)
-                        org-noter-max-short-selected-text-length
-                      80))
-           ;; fallback title (e.g., "Notes for page 10")
-           (default-title (let ((template (if (boundp 'org-noter-default-heading-title)
-                                              org-noter-default-heading-title
-                                            "Notes for page $p$")))
-                            (replace-regexp-in-string (regexp-quote "$p$")
-                                                      (number-to-string page)
-                                                      template t t)))
-           ;; Let's us choose a description: Short Text... OR Default Title
-           (description (if (and clean-text (<= (length clean-text) max-len))
-                            clean-text
-                          default-title)))
+      ;; A way to handle PDF annotation (i.e., if we set `org-noter-store-link-markup-annotation' to t)
+      (when (and has-region (eq mode t))
+        (pdf-annot-add-highlight-markup-annotation pdf-view-active-region))
 
-      (org-link-store-props
-       :type "pdf"
-       :link link
-       :description description)
+      (let* ((link (if has-region
+                       (let* ((region (cadr pdf-view-active-region))
+                              (h (nth 0 region)) ; x1
+                              (v (nth 1 region)) ; y1
+                              ;; Storing the edges of the highlight (i.e., if we set `org-noter-store-link-markup-annotation' to 'flash OR t)
+                              (edges-str (if mode
+                                             (mapconcat (lambda (r)
+                                                          (mapconcat (lambda (n) (format "%.3f" n)) r " "))
+                                                        (cdr pdf-view-active-region) " ")
+                                           nil)))
+                         (if edges-str
+                             ;; Store edges in link if `org-noter-store-link-markup-annotation' 'flash or 't mode
+                             (format "pdf:%s::(%d %.3f . %.3f %s)" file-path page v h edges-str)
+                           (format "pdf:%s::(%d %.3f . %.3f)" file-path page v h)))
+                     (format "pdf:%s::%d" file-path page)))
+             ;; Get selected text if available
+             (raw-text (when has-region
+                         (mapconcat #'identity (pdf-view-active-region-text) " ")))
+             (clean-text (when raw-text
+                           (string-trim (replace-regexp-in-string "[[:space:]\n\r]+" " " raw-text))))
+             (max-len (if (boundp 'org-noter-max-short-selected-text-length)
+                          org-noter-max-short-selected-text-length
+                        80))
+             (default-title (let ((template (if (boundp 'org-noter-default-heading-title)
+                                                org-noter-default-heading-title
+                                              "Notes for page $p$")))
+                              (replace-regexp-in-string (regexp-quote "$p$")
+                                                        (number-to-string page)
+                                                        template t t)))
+             (description (if (and clean-text (<= (length clean-text) max-len))
+                              clean-text
+                            default-title)))
 
-      link)))
+        (org-link-store-props
+         :type "pdf"
+         :link link
+         :description description)
 
-(defun org-noter-goto-precise-link-location (page v h)
-  "Go to PAGE, scroll to relative coordinate V (vertically), and show arrow."
+        link))))
+
+;; Scroll vertically only
+  ;; NOTE(hnvy): Unsure if a horizontal scroll would also be useful? Doesn't seem
+  ;; to be present in the default behaviour.
+(defun org-noter-goto-precise-link-location (page v h &optional edges)
+  "Go to PAGE, scroll to relative coordinate V, and flash matching annotation or EDGES."
   (pdf-view-goto-page page)
   (let ((size (pdf-view-image-size)))
-    ;; Scroll vertically only
     (image-set-window-vscroll
-     ;; NOTE(hnvy): Unsure if a horizontal scroll would also be useful? Doesn't seem
-     ;; to be present in the default behaviour.
-     (round (/ (* v (cdr size)) (frame-char-height))))
-    )
+     (round (/ (* v (cdr size)) (frame-char-height)))))
 
   ;; Show the arrow
   (when (fboundp 'org-noter--show-arrow)
     (setq org-noter--arrow-location (vector (cons page v) (selected-window) v h))
-    (org-noter--show-arrow)))
+    (org-noter--show-arrow))
+
+  (if edges
+      ;; If our link contains explicit edges (i.e., if we had set `org-noter-store-link-markup-annotation' to 'flash OR t)
+      (pdf-view-display-region (cons page edges))
+
+    ;; What to do if there are no edges
+    (let ((annots (pdf-info-getannots page)))
+      (catch 'found-annot
+        (dolist (annot annots)
+          (let ((type (alist-get 'type annot))
+                (annot-edges (alist-get 'edges annot)))
+            (when (eq type 'highlight)
+              ;; Ensure edges is a list of regions
+              (when (numberp (car annot-edges))
+                (setq annot-edges (list annot-edges)))
+
+              (dolist (r annot-edges)
+                (when (and (>= (+ h 0.01) (nth 0 r))
+                           (<= (- h 0.01) (nth 2 r))
+                           (>= (+ v 0.01) (nth 1 r))
+                           (<= (- v 0.01) (nth 3 r)))
+                  ;; FLASH!!!
+                  (pdf-view-display-region (cons page annot-edges))
+                  (throw 'found-annot t))))))))))
 
 (defun org-noter-pdf-link-open (link)
-  "Open a PDF link, handling the custom (page v . h) format."
+  "Open a PDF link, handling the custom (page v . h [edges]) format."
   (let* ((parts (split-string link "::"))
          (path (car parts))
          (option (cadr parts)))
     (if (and option
-             (string-match "^(\\([0-9]+\\)[[:space:]]+\\([0-9.]+\\)[[:space:]]*\\.[[:space:]]*\\([0-9.]+\\))$" option))
+             (string-match "^(\\([0-9]+\\)[[:space:]]+\\([0-9.]+\\)[[:space:]]*\\.[[:space:]]*\\([0-9.]+\\)\\(?:[[:space:]]+\\([0-9. ]+\\)\\)?)$" option))
         (progn
           (let* ((clean-path (expand-file-name path))
                  (buf (find-file-noselect clean-path))
@@ -561,8 +613,19 @@ The description of the link is determined as follows:
 
           (let ((page (string-to-number (match-string 1 option)))
                 (v (string-to-number (match-string 2 option)))
-                (h (string-to-number (match-string 3 option))))
-            (org-noter-goto-precise-link-location page v h)))
+                (h (string-to-number (match-string 3 option)))
+                (edges-str (match-string 4 option))
+                edges)
+
+            ;; Parse edges string if present
+            (when edges-str
+              (let ((nums (mapcar #'string-to-number (split-string edges-str))))
+                ;; Group flat list into list of lists (regions of 4 coordinates)
+                (while nums
+                  (push (list (pop nums) (pop nums) (pop nums) (pop nums)) edges))
+                (setq edges (nreverse edges))))
+
+            (org-noter-goto-precise-link-location page v h edges)))
 
       ;; fallback
       (if (fboundp 'org-pdftools-open)
@@ -574,8 +637,6 @@ The description of the link is determined as follows:
 (org-link-set-parameters "pdf"
                          :follow 'org-noter-pdf-link-open
                          :store 'org-noter-store-highlight-link)
-
-
 
 (defun org-noter-pdf-set-columns (num-columns)
   "Interactively set the COLUMN_EDGES property for the current heading.
