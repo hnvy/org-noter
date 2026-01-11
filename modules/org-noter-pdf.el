@@ -570,14 +570,13 @@ Prefix arg (C-u) toggles the behaviour (Non-nil -> Nil; Nil -> T)."
   ;; to be present in the default behaviour.
 (defun org-noter-goto-precise-link-location (page v h &optional edges)
   "Go to PAGE, scroll to relative coordinate V, and flash matching annotation or EDGES."
-  (pdf-view-goto-page page)
-  (let ((size (pdf-view-image-size)))
-    (image-set-window-vscroll
-     (round (/ (* v (cdr size)) (frame-char-height)))))
+  (when (and org-noter--arrow-location
+             (vectorp org-noter--arrow-location)
+             (> (length org-noter--arrow-location) 0)
+             (not (timerp (aref org-noter--arrow-location 0))))
+    (setq org-noter--arrow-location nil))
 
-  ;; Show the arrpw
-  (setq org-noter--arrow-location (vector (cons page v) (selected-window) v h))
-  (org-noter-pdf--show-arrow)
+  (org-noter-pdf--goto-location 'pdf-view-mode (cons page (cons v h)) (selected-window))
 
   (if edges
       ;; If our link contains explicit edges (i.e., if we had set `org-noter-store-link-markup-annotation' to 'flash OR t)
