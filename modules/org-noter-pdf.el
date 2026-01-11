@@ -504,11 +504,16 @@ Behaviour depends on `org-noter-store-link-markup-annotation':
 Prefix arg (C-u) toggles the behaviour (Non-nil -> Nil; Nil -> T)."
   (when (eq major-mode 'pdf-view-mode)
     (let* ((file-path (buffer-file-name))
-           (has-region (and pdf-view-active-region
-                            (consp pdf-view-active-region)
-                            (cdr pdf-view-active-region)))
+           (highlight (org-noter-pdf--get-highlight))
+           ;; NOTE(hnvy): we must use cdr here due to pdf-tools update 1.3.0
+           ;; Since that update, `pdf-view-active-region' now returns
+           ;; page information along with coordination. But, ~cdr~ may
+           ;; not be needed if we modify `org-noter-pdf--get-highlight' function to account for this?
+           (has-region (and highlight
+                            (pdf-highlight-coords highlight)
+                            (cdr (pdf-highlight-coords highlight))))
            (page (if has-region
-                     (car pdf-view-active-region)
+                     (pdf-highlight-page highlight)
                    (pdf-view-current-page)))
            ;; Determine effective mode based on config and prefix arg
            (mode (if current-prefix-arg
@@ -517,17 +522,18 @@ Prefix arg (C-u) toggles the behaviour (Non-nil -> Nil; Nil -> T)."
 
       ;; A way to handle PDF annotation (i.e., if we set `org-noter-store-link-markup-annotation' to t)
       (when (and has-region (eq mode t))
-        (pdf-annot-add-highlight-markup-annotation pdf-view-active-region))
+        (pdf-annot-add-highlight-markup-annotation (pdf-highlight-coords highlight)))
 
       (let* ((link (if has-region
-                       (let* ((region (cadr pdf-view-active-region))
+                       (let* ((coords (pdf-highlight-coords highlight))
+                              (region (cadr coords))
                               (h (nth 0 region)) ; x1
                               (v (nth 1 region)) ; y1
                               ;; Storing the edges of the highlight (i.e., if we set `org-noter-store-link-markup-annotation' to 'flash OR t)
                               (edges-str (if mode
                                              (mapconcat (lambda (r)
                                                           (mapconcat (lambda (n) (format "%.3f" n)) r " "))
-                                                        (cdr pdf-view-active-region) " ")
+                                                        (cdr coords) " ")
                                            nil)))
                          (if edges-str
                              ;; Store edges in link if `org-noter-store-link-markup-annotation' 'flash or 't mode
