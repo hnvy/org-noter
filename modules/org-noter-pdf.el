@@ -640,9 +640,37 @@ Prefix arg (C-u) toggles the behaviour (Non-nil -> Nil; Nil -> T)."
         (when (and option (string-match-p "^[0-9]+$" option))
           (pdf-view-goto-page (string-to-number option)))))))
 
+(defun org-noter-pdf-link-export (link description format)
+  "Export the custom PDF LINK with DESCRIPTION for FORMAT.
+Converts the custom (page v . h) format into standard
+HTML #page=N links to make inline `org-noter' links usable in browsers."
+  (let* ((parts (split-string link "::"))
+         (raw-path (car parts))
+         (option (cadr parts))
+         ;; Extract page number from the option string
+         (page (cond
+                ((and option (string-match "^(\\([0-9]+\\)" option))
+                 (match-string 1 option))
+                ((and option (string-match "^[0-9]+$" option))
+                 option)
+                (t "1")))
+         ;; escpe the path and ensure it's relative for export
+         (path (if (fboundp 'org-export-file-uri)
+                   (org-export-file-uri (org-link-escape raw-path))
+                 raw-path)))
+    (cond
+     ((eq format 'html)
+      (format "<a href=\"%s#page=%s\">%s</a>"
+              path
+              page
+              (or description path)))
+     ;; fallback
+     (t (if description (format "%s (%s)" description path) path)))))
+
 (org-link-set-parameters "pdf"
-                         :follow 'org-noter-pdf-link-open
-                         :store 'org-noter-store-highlight-link)
+  :follow 'org-noter-pdf-link-open
+  :store 'org-noter-store-highlight-link
+  :export 'org-noter-pdf-link-export)
 
 (defun org-noter-pdf-set-columns (num-columns)
   "Interactively set the COLUMN_EDGES property for the current heading.
