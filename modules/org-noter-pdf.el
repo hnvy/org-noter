@@ -720,11 +720,6 @@ HTML #page=N links to make inline `org-noter' links usable in browsers."
      ;; fallback
      (t (if description (format "%s (%s)" description path) path)))))
 
-(org-link-set-parameters "pdf"
-  :follow 'org-noter-pdf--link-open
-  :store 'org-noter-pdf-store-highlight-link
-  :export 'org-noter-pdf--link-export)
-
 (defun org-noter-pdf-set-columns (num-columns)
   "Interactively set the COLUMN_EDGES property for the current heading.
 NUM-COLUMNS can be given as an integer prefix or in the
@@ -768,6 +763,11 @@ current heading inherit the COLUMN_EDGES property."
        (vconcat (kbd "C-c C-x") this-CxCc-cmd)))))
 
 (define-key org-noter-doc-mode-map (kbd "C-c l") 'org-store-link)
+
+(org-link-set-parameters "pdf"
+  :follow 'org-noter-pdf--link-open
+  :store 'org-noter-pdf-store-highlight-link
+  :export 'org-noter-pdf--link-export)
 
 (provide 'org-noter-pdf)
 ;;; org-noter-pdf.el ends here
